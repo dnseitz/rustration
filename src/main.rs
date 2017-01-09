@@ -3,10 +3,10 @@ use std::fs::File;
 use std::path::Path;
 use std::io::Read;
 use std::env;
-use token::Token;
+use parse::Code;
 
-mod token;
 mod interpreter;
+mod parse;
 
 // For now lets interpret, maybe we can compile in the future...
 fn main() {
@@ -16,7 +16,14 @@ fn main() {
 
   let file = read_file(file_name);
 
-  interpreter::interpret(file);
+  let mut code = Code::new(file);
+
+  code.parse();
+  code.run();
+
+  //println!("{:#?}", code);
+
+  //interpreter::interpret(file);
 }
 
 fn read_file<P: AsRef<Path>>(path: P) -> Vec<u8> {
@@ -31,10 +38,4 @@ fn read_file<P: AsRef<Path>>(path: P) -> Vec<u8> {
 
   file.read_to_end(&mut buffer).unwrap();
   buffer
-}
-
-fn parse(stream: Vec<u8>) {
-  for token in stream {
-    println!("{:#?}", Token::from(token));
-  }
 }

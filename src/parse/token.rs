@@ -27,4 +27,3 @@ impl From<u8> for Token {
     }
   }
 }
-
