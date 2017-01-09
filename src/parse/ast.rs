@@ -1,6 +1,4 @@
 
-use std;
-use std::io::Read;
 use super::parse;
 use super::Code;
 use interpreter::Context;
@@ -18,15 +16,15 @@ pub enum Expr {
 }
 
 impl Expr {
-  fn run(&mut self, context: &mut Context) {
+  pub fn run(&self, context: &mut Context) {
     match *self {
       Expr::MoveRight => context.move_right(),
       Expr::MoveLeft => context.move_left(),
       Expr::Increment => context.increment(),
       Expr::Decrement => context.decrement(),
-      Expr::Output => print!("{}", char::from(context.read() as u8)),
-      Expr::Input => context.write(read_input()),
-      Expr::Loop(ref mut inner) => inner.run(context),
+      Expr::Output => context.output(),
+      Expr::Input => context.input(),
+      Expr::Loop(ref inner) => inner.run(context),
     }
   }
 }
@@ -45,8 +43,8 @@ impl Block {
     self.block.push_back(expr);
   }
 
-  pub fn run(&mut self, context: &mut Context) {
-    for expr in self.block.iter_mut() {
+  pub fn run(&self, context: &mut Context) {
+    for expr in self.block.iter() {
       expr.run(context);
     }
   }
@@ -59,21 +57,12 @@ pub struct Loop {
 
 impl Loop {
   pub fn new(code: &mut Code) -> Self {
-    Loop { block: parse(code) }
+    Loop { block: parse(code, false) }
   }
 
-  fn run(&mut self, context: &mut Context) {
+  fn run(&self, context: &mut Context) {
     while !context.current_cell_is_zero() {
       self.block.run(context);
     }
   }
-}
-
-fn read_input() -> isize {
-  std::io::stdin()
-    .bytes()
-    .next()
-    .and_then(|result| result.ok())
-    .map(|byte| byte as isize)
-    .unwrap()
 }

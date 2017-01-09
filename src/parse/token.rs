@@ -1,4 +1,6 @@
 
+pub const EOF: u8 = 255;
+
 #[derive(Debug, PartialEq)]
 pub enum Token {
   MoveRight,
@@ -10,6 +12,7 @@ pub enum Token {
   JumpForward,
   JumpBack,
   Comment,
+  Eof,
 }
 
 impl From<u8> for Token {
@@ -23,6 +26,7 @@ impl From<u8> for Token {
       b',' => Token::Input,
       b'[' => Token::JumpForward,
       b']' => Token::JumpBack,
+      EOF  => Token::Eof,
       _    => Token::Comment,
     }
   }
