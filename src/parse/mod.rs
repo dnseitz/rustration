@@ -1,4 +1,17 @@
 
+//! Parsing Brainfuck programs.
+//! 
+//! Because lexing is so simple for this language, the lexer runs lazily, only lexing the input as
+//! a new token is required. This means the lexing and parsing stages are very closely linked as
+//! the parser and lexer run essentially in lockstep.
+//! 
+//! The parser constructs an AST of the Brainfuck program. Each program can be represented by one
+//! single block statement that contains all the expressions in the program stored sequentially.
+//! 
+//! Because each expression is so simple, code can easily be executed at parse time. This means
+//! that as the program is being parsed it can be executed on a virtual machine. This is what
+//! allows the REPL functionality of this interpreter.
+
 use interpreter::Context;
 use self::ast::{Expr, Loop, Block};
 use self::token::{MetaToken, Token};
@@ -9,6 +22,9 @@ pub use self::token::EOF;
 mod ast;
 mod token;
 
+/// A structure representing a Brainfuck program
+// TODO: Break this into Code and Program?
+// Code would represent the unparsed code while Program is the parsed code ready to be executed.
 pub struct Code {
   code: Vec<u8>,
   current_index: usize,
@@ -23,6 +39,7 @@ pub struct Code {
 }
 
 impl Code {
+  /// Feed in a vector of bytes to be parsed
   pub fn new(data: Vec<u8>) -> Self {
     Code {
       code: data,
@@ -36,6 +53,7 @@ impl Code {
     }
   }
 
+  /// Used for the REPL interpreter, data is sent over the `rx` channel as it is recieved
   pub fn new_from_channel(rx: Receiver<Vec<u8>>, barrier: Arc<Barrier>) -> Self {
     Code {
       code: Vec::new(),
@@ -49,6 +67,7 @@ impl Code {
     }
   }
 
+  /// Get the next token in the stream of program data.
   fn next_token(&mut self) -> MetaToken {
     let mut len = self.code.len();
     loop {
@@ -79,11 +98,13 @@ impl Code {
     }
   }
 
+  /// Parse the program.
   pub fn parse(&mut self) {
     let entry = parse(self, false);
     self.entry = Some(entry);
   }
 
+  /// Parse the program and execute the code as it is being parsed.
   pub fn parse_and_run(&mut self) {
     let entry = parse(self, true);
     if let Some(barrier) = self.barrier.as_ref() {
@@ -93,6 +114,7 @@ impl Code {
     self.entry = Some(entry);
   }
 
+  /// Run the already parsed program.
   pub fn run(&mut self) {
     let mut context = Context::new();
     if let Some(entry) = self.entry.as_mut() {
@@ -112,6 +134,9 @@ impl Drop for Code {
   }
 }
 
+/// Loop through each byte of data given for a program and parse it into our AST.
+/// 
+/// Optionaly execute the expressions as they are evaluated.
 fn parse(code: &mut Code, run: bool) -> Block {
   let mut block = Block::new();
   let mut context = Context::new();

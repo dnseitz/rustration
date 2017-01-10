@@ -1,4 +1,11 @@
 
+//! Brainfuck REPL Interpreter
+//! 
+//! The REPL interpreter allows you to input a Brainfuck program from the command line and see it
+//! execute on the fly.
+//! 
+//! This module also contains the context of the virtual machine used to execute Brainfuck code.
+
 use std;
 use std::io::{Write};
 use std::sync::{Arc, Barrier};
@@ -7,6 +14,11 @@ use std::collections::VecDeque;
 use parse::EOF;
 use parse::Code;
 
+/// A REPL interpreter that takes input from the command line and executes it.
+/// 
+/// Input can be any valid ascii characters, the Brainfuck interpreter will ignore any non command
+/// characters and execute any command characters it recieves. There are some keywords that are
+/// used as commands to the REPL interpreter like `quit` which stops the interpreter.
 pub struct Repl {
   // TODO: Better name
   tx: Sender<Vec<u8>>,
@@ -15,6 +27,7 @@ pub struct Repl {
 }
 
 impl Repl {
+  /// Create a new REPL interpreter ready to be run.
   pub fn new() -> Self {
     let barrier = Arc::new(Barrier::new(2));
     let (tx, rx) = std::sync::mpsc::channel();
@@ -32,6 +45,7 @@ impl Repl {
     }
   }
 
+  /// Start running the REPL interpreter.
   pub fn start(&mut self) {
     self.running = true;
     Repl::display_carrot(false);
@@ -99,6 +113,7 @@ impl Repl {
   }
 }
 
+/// The context of a virtual machine to run a Brainfuck program on.
 pub struct Context {
   tape: Vec<u8>,
   current_index: usize,
@@ -106,6 +121,7 @@ pub struct Context {
 }
 
 impl Context {
+  /// Create a new, fresh context with an empty tape and empty input buffer.
   pub fn new() -> Self {
     Context {
       tape: vec![0; 1],
@@ -114,6 +130,7 @@ impl Context {
     }
   }
 
+  /// Move the data pointer right one.
   pub fn move_right(&mut self) {
     self.current_index += 1;
     while self.current_index >= self.tape.len() {
@@ -121,14 +138,15 @@ impl Context {
     }
   }
 
+  /// Move the data pointer left one.
   pub fn move_left(&mut self) {
     if self.current_index > 0 {
       self.current_index -= 1;
     }
   }
 
+  /// Retrieve input from the input buffer or the command line if the input buffer is empty.
   pub fn input(&mut self) {
-    
     loop {
       match self.input_buffer.pop_front() {
         Some(input) => {
@@ -140,6 +158,7 @@ impl Context {
     }
   }
 
+  /// Output the value stored under the data pointer.
   pub fn output(&self) {
     print!("{}", char::from(self.read()));
     match std::io::stdout().flush() {
@@ -156,21 +175,25 @@ impl Context {
     self.tape[self.current_index]
   }
 
+  /// Increment the value stored in the cell under the data pointer.
   pub fn increment(&mut self) {
     let old = self.tape[self.current_index];
     self.tape[self.current_index] = old.wrapping_add(1);
   }
 
+  /// Decrement the value stored in the cell under the data pointer.
   pub fn decrement(&mut self) {
     let old = self.tape[self.current_index];
     self.tape[self.current_index] = old.wrapping_sub(1);
   }
 
+  /// Return true if the value stored in the cell under the data pointer is zero, false otherwise.
   pub fn current_cell_is_zero(&mut self) -> bool {
     self.tape[self.current_index] == 0
   }
 }
 
+/// Read input from the command line
 fn read_input() -> VecDeque<u8> {
   let mut buffer = String::new();
   match std::io::stdin().read_line(&mut buffer) {
