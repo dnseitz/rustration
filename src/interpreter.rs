@@ -19,9 +19,12 @@ impl Repl {
     let barrier = Arc::new(Barrier::new(2));
     let (tx, rx) = std::sync::mpsc::channel();
     let mut code = Code::new_from_channel(rx, barrier.clone());
-    std::thread::spawn(move|| {
-      code.parse_and_run();
-    });
+    let _handle = std::thread::Builder::new()
+      .name(String::from("parse"))
+      .spawn(move|| {
+         code.parse_and_run();
+       });
+
     Repl {
       tx: tx,
       barrier: barrier,
