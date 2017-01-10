@@ -123,3 +123,77 @@ fn parse(code: &mut Code, run: bool) -> Block {
   }
   block
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use super::token::Token;
+  use std::time::{Instant, Duration};
+
+  #[test]
+  #[ignore]
+  fn bench_parse() {
+    const NUM_TESTS: u32 = 1000;
+    let mut sum = Duration::new(0, 0);
+    let data = ::read_file("test_files/life.b");
+
+    for _ in 0..NUM_TESTS {
+      let mut code = Code::new(data.clone());
+
+      let start = Instant::now();
+      code.parse();
+      let end = Instant::now();
+      let duration = end.duration_since(start);
+      sum += duration;
+    }
+    sum /= NUM_TESTS;
+    println!("Avg Seconds: {}, Avg Nanoseconds: {}", sum.as_secs(), sum.subsec_nanos());
+  }
+
+  #[test]
+  fn code_parse() {
+    let mut code = Code::new(vec![b'>', b'<', b'+', b'[', b'-', b']', b'+', b'.']);
+    assert!(code.entry.is_none());
+
+    code.parse();
+
+    assert!(code.entry.is_some());
+  }
+
+  #[test]
+  #[should_panic]
+  fn code_invalid_parse_panics() {
+    let mut code = Code::new(vec![b'[', b'+']);
+    
+    code.parse();
+  }
+
+  #[test]
+  fn code_next_token() {
+    let mut code = Code::new(vec![b'>', b'<', b'+', b'+', b'.']);
+
+    let mut token: Token;
+
+    token = code.next_token();
+    assert_eq!(token, Token::MoveRight);
+
+    token = code.next_token();
+    assert_eq!(token, Token::MoveLeft);
+
+    token = code.next_token();
+    assert_eq!(token, Token::Increment);
+
+    token = code.next_token();
+    assert_eq!(token, Token::Increment);
+
+    token = code.next_token();
+    assert_eq!(token, Token::Output);
+
+    token = code.next_token();
+    assert_eq!(token, Token::Eof);
+    token = code.next_token();
+    assert_eq!(token, Token::Eof);
+    token = code.next_token();
+    assert_eq!(token, Token::Eof);
+  }
+}

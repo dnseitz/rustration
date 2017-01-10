@@ -66,3 +66,38 @@ impl Loop {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use parse::Code;
+
+  #[test]
+  fn add_expr_to_block() {
+    let mut block = Block::new();
+    assert_eq!(block.block.len(), 0);
+
+    block.add_expr(Expr::MoveLeft);
+    block.add_expr(Expr::MoveRight);
+
+    assert_eq!(block.block.len(), 2);
+  }
+
+  #[test]
+  fn generate_loop() {
+    let mut code = Code::new(vec![b'>', b']']);
+    code.nesting = 1;
+
+    let loop_expr = Loop::new(&mut code);
+    assert_eq!(loop_expr.block.block.len(), 1);
+  }
+
+  #[test]
+  #[should_panic]
+  fn non_matching_loop_panics() {
+    let mut code = Code::new(vec![b'>', b'<']);
+    code.nesting = 1;
+
+    let _loop_expr = Loop::new(&mut code);
+  }
+}
