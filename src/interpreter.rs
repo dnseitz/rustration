@@ -115,7 +115,7 @@ impl Repl {
 
 /// The context of a virtual machine to run a Brainfuck program on.
 pub struct Context {
-  tape: Vec<isize>,
+  tape: Vec<i8>,
   current_index: usize,
   input_buffer: VecDeque<u8>,
 }
@@ -150,7 +150,7 @@ impl Context {
     loop {
       match self.input_buffer.pop_front() {
         Some(input) => {
-          self.write(input as isize);
+          self.write(input as i8);
           break;
         }
         None => self.input_buffer.append(&mut read_input()),
@@ -167,11 +167,11 @@ impl Context {
     }
   }
 
-  fn write(&mut self, value: isize) {
+  fn write(&mut self, value: i8) {
     self.tape[self.current_index] = value;
   }
 
-  fn read(&self) -> isize {
+  fn read(&self) -> i8 {
     self.tape[self.current_index]
   }
 
