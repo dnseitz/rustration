@@ -1,6 +1,35 @@
 
 pub const EOF: u8 = 255;
 
+#[derive(Debug)]
+pub struct MetaToken {
+  token: Token,
+  line: usize,
+  character: usize,
+}
+
+impl MetaToken {
+  pub fn new(token: Token, line: usize, character: usize) -> Self {
+    MetaToken {
+      token: token,
+      line: line,
+      character: character,
+    }
+  }
+
+  pub fn token(&self) -> &Token {
+    &self.token
+  }
+
+  pub fn line(&self) -> usize {
+    self.line
+  }
+
+  pub fn character(&self) -> usize {
+    self.character
+  }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Token {
   MoveRight,
