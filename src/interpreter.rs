@@ -115,7 +115,7 @@ impl Repl {
 
 /// The context of a virtual machine to run a Brainfuck program on.
 pub struct Context {
-  tape: Vec<u8>,
+  tape: Vec<isize>,
   current_index: usize,
   input_buffer: VecDeque<u8>,
 }
@@ -150,7 +150,7 @@ impl Context {
     loop {
       match self.input_buffer.pop_front() {
         Some(input) => {
-          self.write(input);
+          self.write(input as isize);
           break;
         }
         None => self.input_buffer.append(&mut read_input()),
@@ -160,18 +160,18 @@ impl Context {
 
   /// Output the value stored under the data pointer.
   pub fn output(&self) {
-    print!("{}", char::from(self.read()));
+    print!("{}", char::from(self.read() as u8));
     match std::io::stdout().flush() {
       Ok(_) => {},
       Err(err) => println!("Error flushing the output buffer: {}", err),
     }
   }
 
-  fn write(&mut self, value: u8) {
+  fn write(&mut self, value: isize) {
     self.tape[self.current_index] = value;
   }
 
-  fn read(&self) -> u8 {
+  fn read(&self) -> isize {
     self.tape[self.current_index]
   }
 

@@ -1,5 +1,5 @@
 [package]
-name = "rustrating"
+name = "rustration"
 version = "0.1.0"
 authors = ["Daniel Seitz <dnseitz@gmail.com>"]
 
