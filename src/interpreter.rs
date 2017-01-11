@@ -24,12 +24,11 @@ impl FromStr for Command {
   type Err = ();
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
+    let old = s;
     match s.trim() {
       "quit" => Ok(Command::Quit),
-      input => {
-        let mut input: String = input.into();
-        input.push_str("\n");
-        Ok(Command::Interpret(input))
+      _ => {
+        Ok(Command::Interpret(old.into()))
       },
     }
   }
