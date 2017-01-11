@@ -396,4 +396,4 @@ Behaviour on end of input is also inherited from the next level down
   >> >> >>
 
   >                         move forward to next instruction
-]
+]!

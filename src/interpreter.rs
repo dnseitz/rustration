@@ -7,12 +7,33 @@
 //! This module also contains the context of the virtual machine used to execute Brainfuck code.
 
 use std;
+use std::str::FromStr;
 use std::io::{Write};
 use std::sync::{Arc, Barrier};
 use std::sync::mpsc::Sender;
 use std::collections::VecDeque;
 use parse::EOF;
 use parse::Code;
+
+enum Command {
+  Quit,
+  Interpret(String),
+}
+
+impl FromStr for Command {
+  type Err = ();
+
+  fn from_str(s: &str) -> Result<Self, Self::Err> {
+    match s.trim() {
+      "quit" => Ok(Command::Quit),
+      input => {
+        let mut input: String = input.into();
+        input.push_str("\n");
+        Ok(Command::Interpret(input))
+      },
+    }
+  }
+}
 
 /// A REPL interpreter that takes input from the command line and executes it.
 /// 
@@ -51,32 +72,30 @@ impl Repl {
     Repl::display_carrot(false);
     self.barrier.wait();
     while self.running {
-      let mut input = String::new();
-      match Repl::read_line(&mut input) {
-        Ok(num_read) => {
-          if num_read == 0 {
-            self.send(vec![EOF]);
-            self.running = false;
-          }
-          else if num_read == 1 {
-            continue;
-          }
-          else {
-            let will_output = self.interpret_command(&input);
-            if self.running {
-              self.send(input.into_bytes());
-              Repl::display_carrot(will_output);
-            }
-          }
+      let input = self.read_line();
+      match input {
+        Some(input) => {
+            // parse -> Command cannot fail
+            let command = input.parse().unwrap();
+            self.interpret_command(command);
         },
-        Err(err) => panic!("Error reading from stdin: {}", err),
+        None => self.exit(),
       }
     }
   }
 
-  fn read_line(buffer: &mut String) -> std::io::Result<usize> {
-    let ret = std::io::stdin().read_line(buffer);
-    ret
+  fn read_line(&mut self) -> Option<String> {
+    let mut buffer = String::new();
+    let num_read = match std::io::stdin().read_line(&mut buffer) {
+      Ok(num_read) => num_read,
+      Err(err) => panic!("Error reading from stdin: {}", err),
+    };
+    if num_read == 0 { None } else { Some(buffer) }
+  }
+
+  fn exit(&mut self) {
+    self.send(vec![EOF]);
+    self.running = false;
   }
 
   fn display_carrot(newline: bool) {
@@ -92,23 +111,22 @@ impl Repl {
     match self.tx.send(data) {
       Ok(_) => {},
       Err(_) => {
-        self.running = false;
+        self.exit();
         return;
       }
     }
+    // Wait for the parse thread to parse and execute
     self.barrier.wait();
   }
 
-  fn interpret_command(&mut self, command: &str) -> bool {
-    let lowercase = command.trim().to_lowercase();
-    let will_output = lowercase.contains(".");
-    match lowercase.as_ref() {
-      "quit" => {
-        self.send(vec![EOF]);
-        self.running = false;
-        false
+  fn interpret_command(&mut self, command: Command) {
+    match command {
+      Command::Quit => self.exit(),
+      Command::Interpret(input) => {
+        let will_output = input.contains(".");
+        self.send(input.into_bytes());
+        Repl::display_carrot(will_output);
       },
-      _ => will_output,
     }
   }
 }
