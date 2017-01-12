@@ -33,6 +33,7 @@ impl FromStr for Command {
   }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Status {
   /// The parsing thread is ready for more input
   Ready,
@@ -57,11 +58,11 @@ impl Repl {
   pub fn new() -> Self {
     let (data_tx, data_rx) = std::sync::mpsc::channel();
     let (status_tx, status_rx) = std::sync::mpsc::channel();
-    let mut code = ReplParser::new(data_rx, status_tx);
+    let mut parser = ReplParser::new(data_rx, status_tx);
     let _handle = std::thread::Builder::new()
       .name(String::from("parse"))
       .spawn(move|| {
-        match code.parse_and_run() {
+        match parser.parse_and_run() {
           Ok(_) => {},
           Err(err) => println!("{}", err),
         }

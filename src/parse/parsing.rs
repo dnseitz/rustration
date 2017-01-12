@@ -19,7 +19,7 @@ pub trait Parser {
 }
 
 pub struct ReplParser {
-  code: RawParser,
+  inner: RawParser,
   data_channel: Receiver<Vec<u8>>,
   status_channel: Sender<Status>,
 }
@@ -28,15 +28,15 @@ impl Parser for ReplParser {
   /// Get the next token in the stream of program data.
   fn next_token(&mut self) -> MetaToken {
     loop {
-      let next_token = self.code.next_token();
+      let next_token = self.inner.next_token();
       match *next_token.token() {
         Token::Eof => {
           if let Err(_) = self.status_channel.send(Status::Ready) {
-            return self.code.eof_token();
+            return self.inner.eof_token();
           }
           match self.data_channel.recv().ok() {
-            Some(mut new_code) => self.code.code.append(&mut new_code),
-            None => return self.code.eof_token(),
+            Some(mut new_code) => self.inner.code.append(&mut new_code),
+            None => return self.inner.eof_token(),
           }
         },
         _ => return next_token,
@@ -45,15 +45,15 @@ impl Parser for ReplParser {
   }
   
   fn increment_nest_level(&mut self) {
-    self.code.increment_nest_level();
+    self.inner.increment_nest_level();
   }
 
   fn decrement_nest_level(&mut self) {
-    self.code.decrement_nest_level();
+    self.inner.decrement_nest_level();
   }
 
   fn nest_level(&self) -> usize {
-    self.code.nest_level()
+    self.inner.nest_level()
   }
 }
 
@@ -61,7 +61,7 @@ impl ReplParser {
   /// Used for the REPL interpreter, data is sent over the `rx` channel as it is recieved
   pub fn new(data_channel: Receiver<Vec<u8>>, status_channel: Sender<Status>) -> Self {
     ReplParser {
-      code: RawParser::new(Vec::new()),
+      inner: RawParser::new(Vec::new()),
       data_channel: data_channel,
       status_channel: status_channel,
     }
@@ -145,14 +145,14 @@ impl RawParser {
 /// Loop through each byte of data given for a program and parse it into our AST.
 /// 
 /// Optionaly execute the expressions as they are evaluated.
-pub fn parse<T: Parser>(code: &mut T, run: bool) -> Result<Block> {
+pub fn parse<T: Parser>(parser: &mut T, run: bool) -> Result<Block> {
   let mut block = Block::new();
   let mut context = Context::new();
 
   let mut start_line = None;
   let mut start_char = None;
   loop {
-    let meta_token = code.next_token();
+    let meta_token = parser.next_token();
     let line = meta_token.line();
     let character = meta_token.character();
     if start_line.is_none() {
@@ -173,26 +173,26 @@ pub fn parse<T: Parser>(code: &mut T, run: bool) -> Result<Block> {
       Token::Output => Expr::Output,
       Token::Input => Expr::Input,
       Token::JumpForward => {
-        code.increment_nest_level();
-        Expr::Loop(try!(Loop::new(code)))
+        parser.increment_nest_level();
+        Expr::Loop(try!(Loop::new(parser)))
       },
       Token::JumpBack => {
-        if code.nest_level() == 0 {
+        if parser.nest_level() == 0 {
           return Err(ParseError::UnmatchedCloseBrace(line, character));
         }
-        code.decrement_nest_level();
+        parser.decrement_nest_level();
         return Ok(block);
       },
       Token::Comment => continue,
       Token::Eof => {
-        if code.nest_level() > 0 {
+        if parser.nest_level() > 0 {
           return Err(ParseError::UnmatchedOpenBrace(start_line.unwrap(), start_char.unwrap()));
         }
         break;
       }
     };
 
-    if code.nest_level() == 0 && run {
+    if parser.nest_level() == 0 && run {
       expr.run(&mut context);
     }
     block.add_expr(expr);
@@ -204,20 +204,21 @@ pub fn parse<T: Parser>(code: &mut T, run: bool) -> Result<Block> {
 mod tests {
   use super::*;
   use parse::token::Token;
-  use std::time::{Instant, Duration};
+  use std;
 
   #[test]
   #[ignore]
   fn bench_parse() {
+    use std::time::{Instant, Duration};
     const NUM_TESTS: u32 = 1000;
     let mut sum = Duration::new(0, 0);
     let data = ::read_file("test_files/life.b");
 
     for _ in 0..NUM_TESTS {
-      let mut code = Parser::new(data.clone());
+      let mut parser = RawParser::new(data.clone());
 
       let start = Instant::now();
-      code.parse();
+      let _program = parser.parse();
       let end = Instant::now();
       let duration = end.duration_since(start);
       sum += duration;
@@ -227,45 +228,77 @@ mod tests {
   }
 
   #[test]
-  fn code_parse() {
-    let mut code = Parser::new(vec![b'>', b'<', b'+', b'[', b'-', b']', b'+', b'.']);
+  fn repl_parse() {
+    let (data_tx, data_rx) = std::sync::mpsc::channel();
+    let (status_tx, status_rx) = std::sync::mpsc::channel();
 
-    code.parse();
+    let mut parser = ReplParser::new(data_rx, status_tx);
+    std::thread::spawn(move|| {
+      assert!(parser.parse_and_run().is_ok());
+    });
+    assert_eq!(status_rx.recv().unwrap(), Status::Ready);
+    assert!(data_tx.send(vec![b'+', b'+', b'>', b'<']).is_ok());
+    assert_eq!(status_rx.recv().unwrap(), Status::Ready);
+    drop(data_tx);
+    assert_eq!(status_rx.recv().unwrap(), Status::Exited);
   }
 
   #[test]
-  fn code_invalid_parse_panics() {
-    let mut code = Parser::new(vec![b'[', b'+']);
+  fn repl_invalid_parse_errors() {
+    let (data_tx, data_rx) = std::sync::mpsc::channel();
+    let (status_tx, status_rx) = std::sync::mpsc::channel();
+
+    let mut parser = ReplParser::new(data_rx, status_tx);
+    std::thread::spawn(move|| {
+      assert!(parser.parse_and_run().is_err());
+    });
+    assert_eq!(status_rx.recv().unwrap(), Status::Ready);
+    assert!(data_tx.send(vec![b'+', b'+', b'>', b'<', b'[']).is_ok());
+    assert_eq!(status_rx.recv().unwrap(), Status::Ready);
+    drop(data_tx);
+    assert_eq!(status_rx.recv().unwrap(), Status::Exited);
+  }
+
+  #[test]
+  fn code_parse() {
+    let mut parser = RawParser::new(vec![b'>', b'<', b'+', b'[', b'-', b']', b'+', b'.']);
+
+    assert!(parser.parse().is_ok());
+  }
+
+  #[test]
+  fn code_invalid_parse_errors() {
+    let mut parser = RawParser::new(vec![b'[', b'+']);
     
-    assert!(code.parse().is_err());
+    assert!(parser.parse().is_err());
   }
 
   #[test]
   fn code_next_token() {
-    let mut code = Parser::new(vec![b'>', b'<', b'+', b'+', b'.']);
+    let mut parser = RawParser::new(vec![b'>', b'<', b'+', b'+', b'.']);
 
     let mut token;
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::MoveRight);
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::MoveLeft);
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Increment);
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Increment);
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Output);
 
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Eof);
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Eof);
-    token = code.next_token();
+    token = parser.next_token();
     assert_eq!(token.token(), &Token::Eof);
   }
 }

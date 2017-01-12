@@ -153,7 +153,7 @@ impl Loop {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use parse::Parser;
+  use parse::RawParser;
 
   #[test]
   fn add_expr_to_block() {
@@ -168,17 +168,18 @@ mod tests {
 
   #[test]
   fn generate_loop() {
-    let mut code = Parser::new(vec![b'>', b']']);
+    let mut parser = RawParser::new(vec![b'>', b']']);
+    parser.increment_nest_level();
 
-    let loop_expr = Loop::new(&mut code);
-    //assert_eq!(loop_expr.block.block.len(), 1);
+    let loop_expr = Loop::new(&mut parser);
+    assert_eq!(loop_expr.unwrap().block.block.len(), 1);
   }
 
   #[test]
-  #[should_panic]
-  fn non_matching_loop_panics() {
-    let mut code = Parser::new(vec![b'>', b'<']);
+  fn non_matching_loop_errors() {
+    let mut parser = RawParser::new(vec![b'>', b'<']);
+    parser.increment_nest_level();
 
-    let _loop_expr = Loop::new(&mut code);
+    assert!(Loop::new(&mut parser).is_err());
   }
 }
