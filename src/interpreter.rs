@@ -9,8 +9,7 @@
 use std;
 use std::str::FromStr;
 use std::io::{Write};
-use std::sync::{Arc, Barrier};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, Receiver};
 use std::collections::VecDeque;
 use parse::EOF;
 use parse::Code;
@@ -34,33 +33,43 @@ impl FromStr for Command {
   }
 }
 
+pub enum Status {
+  /// The parsing thread is ready for more input
+  Ready,
+
+  /// The parsing thread has exited, this is likely because of a parsing error
+  Exited,
+}
+
 /// A REPL interpreter that takes input from the command line and executes it.
 /// 
 /// Input can be any valid ascii characters, the Brainfuck interpreter will ignore any non command
 /// characters and execute any command characters it recieves. There are some keywords that are
 /// used as commands to the REPL interpreter like `quit` which stops the interpreter.
 pub struct Repl {
-  // TODO: Better name
-  tx: Sender<Vec<u8>>,
-  barrier: Arc<Barrier>,
+  data_channel: Sender<Vec<u8>>,
+  status_channel: Receiver<Status>,
   running: bool,
 }
 
 impl Repl {
   /// Create a new REPL interpreter ready to be run.
   pub fn new() -> Self {
-    let barrier = Arc::new(Barrier::new(2));
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut code = Code::new_from_channel(rx, barrier.clone());
+    let (data_tx, data_rx) = std::sync::mpsc::channel();
+    let (status_tx, status_rx) = std::sync::mpsc::channel();
+    let mut code = Code::new_from_channel(data_rx, status_tx);
     let _handle = std::thread::Builder::new()
       .name(String::from("parse"))
       .spawn(move|| {
-         code.parse_and_run();
-       });
+        match code.parse_and_run() {
+          Ok(_) => {},
+          Err(err) => println!("{}", err),
+        }
+      });
 
     Repl {
-      tx: tx,
-      barrier: barrier,
+      data_channel: data_tx,
+      status_channel: status_rx,
       running: false,
     }
   }
@@ -69,7 +78,7 @@ impl Repl {
   pub fn start(&mut self) {
     self.running = true;
     Repl::display_carrot(false);
-    self.barrier.wait();
+    self.wait_for_status();
     while self.running {
       let input = self.read_line();
       match input {
@@ -80,6 +89,18 @@ impl Repl {
         },
         None => self.exit(),
       }
+    }
+  }
+  
+  fn wait_for_status(&mut self) {
+    match self.status_channel.recv() {
+      Ok(status) => match status {
+        Status::Ready => {},
+        Status::Exited => self.exit(),
+      },
+      Err(_) => {
+        self.exit();
+      },
     }
   }
 
@@ -100,22 +121,18 @@ impl Repl {
   fn display_carrot(newline: bool) {
     if newline { print!("\n") };
     print!("bf> ");
-    match std::io::stdout().flush() {
-      Ok(_) => {},
-      Err(err) => panic!("Error flushing stdout: {}", err),
+    if let Err(err) = std::io::stdout().flush() {
+      panic!("Error flushing stdout: {}", err);
     }
   }
 
   fn send(&mut self, data: Vec<u8>) {
-    match self.tx.send(data) {
-      Ok(_) => {},
-      Err(_) => {
-        self.exit();
-        return;
-      }
+    if let Err(_) = self.data_channel.send(data) {
+      self.running = false;
+      return;
     }
     // Wait for the parse thread to parse and execute
-    self.barrier.wait();
+    self.wait_for_status();
   }
 
   fn interpret_command(&mut self, command: Command) {

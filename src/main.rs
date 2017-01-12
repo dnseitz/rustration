@@ -63,8 +63,10 @@ fn main() {
 
     let mut code = Code::new(file);
 
-    code.parse();
-    code.run();
+    match code.parse() {
+    Ok(program) => program.run(),
+    Err(err) => println!("{}", err),
+    }
   }
   else {
     let mut repl = Repl::new();
