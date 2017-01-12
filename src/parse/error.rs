@@ -1,7 +1,7 @@
 // parse/error.rs
 // Rustration
 //
-// Created by Daniel Seitz on 11/11/17
+// Created by Daniel Seitz on 1/11/17
 
 use std;
 use std::error::Error;
