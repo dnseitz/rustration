@@ -18,7 +18,7 @@ mod error;
 mod parsing;
 
 pub use self::token::EOF;
-pub use self::parsing::Code;
+pub use self::parsing::{ReplParser, RawParser};
 use std;
 
 pub type Result<T> = std::result::Result<T, error::ParseError>;

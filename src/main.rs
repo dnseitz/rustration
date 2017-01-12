@@ -47,7 +47,7 @@ use std::fs::File;
 use std::path::Path;
 use std::io::Read;
 use std::env;
-use parse::Code;
+use parse::RawParser;
 use interpreter::Repl;
 
 mod interpreter;
@@ -61,7 +61,7 @@ fn main() {
 
     let file = read_file(file_name);
 
-    let mut code = Code::new(file);
+    let mut code = RawParser::new(file);
 
     match code.parse() {
     Ok(program) => program.run(),

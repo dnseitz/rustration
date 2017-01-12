@@ -12,7 +12,7 @@ use std::io::{Write};
 use std::sync::mpsc::{Sender, Receiver};
 use std::collections::VecDeque;
 use parse::EOF;
-use parse::Code;
+use parse::ReplParser;
 
 enum Command {
   Quit,
@@ -57,7 +57,7 @@ impl Repl {
   pub fn new() -> Self {
     let (data_tx, data_rx) = std::sync::mpsc::channel();
     let (status_tx, status_rx) = std::sync::mpsc::channel();
-    let mut code = Code::new_from_channel(data_rx, status_tx);
+    let mut code = ReplParser::new(data_rx, status_tx);
     let _handle = std::thread::Builder::new()
       .name(String::from("parse"))
       .spawn(move|| {

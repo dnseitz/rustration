@@ -24,7 +24,7 @@
 //! Would be a C representation of the Brainfuck loop.
 
 use super::parsing::parse;
-use super::Code;
+use super::parsing::Parser;
 use interpreter::Context;
 use std::collections::VecDeque;
 
@@ -137,7 +137,7 @@ pub struct Loop {
 impl Loop {
   /// Create a new `Loop`, parsing all the tokens stored after the initial '[' up until a matching
   /// ']' is found.
-  pub fn new(code: &mut Code) -> super::Result<Self> {
+  pub fn new<T: Parser>(code: &mut T) -> super::Result<Self> {
     let block = try!(parse(code, false));
     Ok(Loop { block: block })
   }
@@ -153,7 +153,7 @@ impl Loop {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use parse::Code;
+  use parse::Parser;
 
   #[test]
   fn add_expr_to_block() {
@@ -168,7 +168,7 @@ mod tests {
 
   #[test]
   fn generate_loop() {
-    let mut code = Code::new(vec![b'>', b']']);
+    let mut code = Parser::new(vec![b'>', b']']);
 
     let loop_expr = Loop::new(&mut code);
     //assert_eq!(loop_expr.block.block.len(), 1);
@@ -177,7 +177,7 @@ mod tests {
   #[test]
   #[should_panic]
   fn non_matching_loop_panics() {
-    let mut code = Code::new(vec![b'>', b'<']);
+    let mut code = Parser::new(vec![b'>', b'<']);
 
     let _loop_expr = Loop::new(&mut code);
   }
