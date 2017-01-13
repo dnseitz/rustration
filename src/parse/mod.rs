@@ -12,7 +12,7 @@
 //! that as the program is being parsed it can be executed on a virtual machine. This is what
 //! allows the REPL functionality of this interpreter.
 
-mod ast;
+pub mod ast;
 mod token;
 mod error;
 mod parsing;

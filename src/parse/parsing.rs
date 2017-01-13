@@ -11,7 +11,7 @@ use interpreter::{Context, Status};
 use std::sync::mpsc::{Sender, Receiver};
 
 pub trait Parser {
-  fn next_token(&mut self) -> MetaToken;
+  fn next_token(&mut self) -> Option<MetaToken>;
 
   fn increment_nest_level(&mut self);
   fn decrement_nest_level(&mut self);
@@ -26,20 +26,19 @@ pub struct ReplParser {
 
 impl Parser for ReplParser {
   /// Get the next token in the stream of program data.
-  fn next_token(&mut self) -> MetaToken {
+  fn next_token(&mut self) -> Option<MetaToken> {
     loop {
-      let next_token = self.inner.next_token();
-      match *next_token.token() {
-        Token::Eof => {
+      match self.inner.next_token() {
+        None => {
           if let Err(_) = self.status_channel.send(Status::Ready) {
-            return self.inner.eof_token();
+            return Some(self.inner.eof_token());
           }
           match self.data_channel.recv().ok() {
             Some(mut new_code) => self.inner.code.append(&mut new_code),
-            None => return self.inner.eof_token(),
+            None => return Some(self.inner.eof_token()),
           }
         },
-        _ => return next_token,
+        next_token => return next_token,
       }
     }
   }
@@ -87,7 +86,7 @@ pub struct RawParser {
 
 impl Parser for RawParser {
   /// Get the next token in the stream of program data.
-  fn next_token(&mut self) -> MetaToken {
+  fn next_token(&mut self) -> Option<MetaToken> {
     if self.current_index < self.code.len() {
       let raw_token = self.code[self.current_index];
       let token = Token::from(self.code[self.current_index]);
@@ -98,10 +97,10 @@ impl Parser for RawParser {
         self.char_num = 0;
       }
       self.char_num += 1;
-      ret
+      Some(ret)
     }
     else {
-      self.eof_token()
+      None 
     }
   }
   
@@ -152,7 +151,13 @@ pub fn parse<T: Parser>(parser: &mut T, run: bool) -> Result<Block> {
   let mut start_line = None;
   let mut start_char = None;
   loop {
-    let meta_token = parser.next_token();
+    let meta_token = if let Some(meta_token) = parser.next_token() {
+      meta_token
+    }
+    else {
+      // 0 for line and column because we don't care about EOF
+      MetaToken::new(Token::Eof, 0, 0)
+    };
     let line = meta_token.line();
     let character = meta_token.character();
     if start_line.is_none() {

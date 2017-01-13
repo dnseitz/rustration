@@ -27,6 +27,8 @@ use super::parsing::parse;
 use super::parsing::Parser;
 use interpreter::Context;
 use std::collections::VecDeque;
+use compile::Compiler;
+use compile::ByteCode;
 
 /// Expressions
 /// 
@@ -96,6 +98,10 @@ impl Program {
     let mut context = Context::new();
     self.entry.run(&mut context);
   }
+
+  pub fn compile<T: Compiler>(&self, compiler: &mut T) -> VecDeque<ByteCode> {
+    self.entry.compile(compiler)
+  }
 }
 
 /// A statement enclosing a series of expressions in order.
@@ -126,6 +132,14 @@ impl Block {
       expr.run(context);
     }
   }
+
+  pub fn compile<T: Compiler>(&self, compiler: &mut T) -> VecDeque<ByteCode> {
+    let mut byte_code = VecDeque::new();
+    for expr in self.block.iter() {
+      byte_code.append(&mut compiler.compile_expr(expr));
+    }
+    byte_code
+  }
 }
 
 /// A loop structure that stores a `Block` of the code that the loop should execute.
@@ -147,6 +161,10 @@ impl Loop {
     while !context.current_cell_is_zero() {
       self.block.run(context);
     }
+  }
+
+  pub fn compile<T: Compiler>(&self, compiler: &mut T) -> VecDeque<ByteCode> {
+    self.block.compile(compiler)
   }
 }
 

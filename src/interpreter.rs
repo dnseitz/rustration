@@ -91,17 +91,26 @@ impl Repl {
         None => self.exit(),
       }
     }
+    self.wait_for_exit();
   }
   
   fn wait_for_status(&mut self) {
     match self.status_channel.recv() {
-      Ok(status) => match status {
-        Status::Ready => {},
-        Status::Exited => self.exit(),
-      },
-      Err(_) => {
+      Ok(status) => if let Status::Exited = status {
         self.exit();
       },
+      Err(_) => self.exit(),
+    }
+  }
+
+  fn wait_for_exit(&self) {
+    loop {
+      match self.status_channel.recv() {
+        Ok(status) => if let Status::Exited = status {
+          break;
+        },
+        Err(_) => break,
+      }
     }
   }
 
